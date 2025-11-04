@@ -1,41 +1,94 @@
-/**
- * Minimal auth helper to integrate with Better Auth if present.
- * - If BETTER_AUTH_SECRET is set and better-auth package is available, uses Better Auth.
- * - Otherwise falls back to a simple demo user for local dev.
- */
+import { NextRequest } from 'next/server'
+import jwt from 'jsonwebtoken'
+import prisma from './db'
 
-import type { NextRequest } from 'next/server'
-import prisma from '@/lib/db'
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_in_production'
 
-export type SessionUser = {
+export interface SessionUser {
   id: string
   email: string
-  name?: string
-  role?: string
+  name?: string | null
+  role: string
 }
 
-export async function getCurrentUser(req?: NextRequest): Promise<SessionUser | null> {
-  // If the project has Better Auth env variables and library, you can integrate here.
-  // For now: if an Authorization header "Bearer demo" is present -> demo user.
+/**
+ * Verify JWT token and return user
+ */
+export async function verifyToken(token: string): Promise<SessionUser | null> {
   try {
-    if (!req) {
-      // server-side calls without request: return demo user
-      const demo = await prisma.user.findFirst()
-      if (!demo) return null
-      return { id: demo.id, email: demo.email, name: demo.name, role: demo.role }
+    const decoded = jwt.verify(token, JWT_SECRET) as {
+      id: string
+      email: string
+      iat?: number
+      exp?: number
     }
 
-    const auth = req.headers.get('authorization') || ''
-    if (auth.toLowerCase().startsWith('bearer demo')) {
-      const demo = await prisma.user.findFirst()
-      if (!demo) return null
-      return { id: demo.id, email: demo.email, name: demo.name, role: demo.role }
-    }
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+    })
 
-    // TODO: integrate with real Better Auth session verification
-    return null
-  } catch (e) {
-    console.error('getCurrentUser error', e)
+    if (!user) return null
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    }
+  } catch (error) {
+    console.error('[Auth] Token verification failed:', error)
     return null
   }
+}
+
+/**
+ * Get current user from request
+ */
+export async function getCurrentUser(req: NextRequest): Promise<SessionUser | null> {
+  try {
+    const authHeader = req.headers.get('authorization')
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null
+    }
+
+    const token = authHeader.split(' ')[1]
+    return await verifyToken(token)
+  } catch (error) {
+    console.error('[Auth] Get current user error:', error)
+    return null
+  }
+}
+
+/**
+ * Create JWT token for user
+ */
+export function createToken(user: { id: string; email: string }): string {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+    },
+    JWT_SECRET,
+    {
+      expiresIn: '7d',
+    }
+  )
+}
+
+/**
+ * Check if user has required role
+ */
+export function hasRole(user: SessionUser, requiredRole: 'VIEWER' | 'EDITOR' | 'ADMIN'): boolean {
+  const roleHierarchy = { VIEWER: 1, EDITOR: 2, ADMIN: 3 }
+  const userRoleLevel = roleHierarchy[user.role as keyof typeof roleHierarchy] || 0
+  const requiredRoleLevel = roleHierarchy[requiredRole]
+
+  return userRoleLevel >= requiredRoleLevel
 }

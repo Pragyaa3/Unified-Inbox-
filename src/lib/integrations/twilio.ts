@@ -1,75 +1,122 @@
 import { Twilio } from 'twilio'
-import type { ChannelIntegration, InboundMessage, OutboundPayload } from './types'
-
-const accountSid = process.env.TWILIO_ACCOUNT_SID
-const authToken = process.env.TWILIO_AUTH_TOKEN
-const twilioClient = accountSid && authToken ? new Twilio(accountSid, authToken) : null
+import type { ChannelIntegration, MessagePayload, MessageResponse, InboundMessage, Channel } from './types'
 
 export class TwilioIntegration implements ChannelIntegration {
-  isConfigured() {
-    return !!twilioClient
+  private client: Twilio | null
+  private phoneNumber: string
+  private whatsappNumber?: string
+  public channel: Channel
+
+  constructor() {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID
+    const authToken = process.env.TWILIO_AUTH_TOKEN
+    
+    this.client = accountSid && authToken ? new Twilio(accountSid, authToken) : null
+    this.phoneNumber = process.env.TWILIO_PHONE_NUMBER || ''
+    this.whatsappNumber = process.env.TWILIO_WHATSAPP_NUMBER
+    this.channel = 'SMS' // Default, can be overridden
   }
 
-  async send(payload: OutboundPayload) {
-    if (!twilioClient) {
-      // fallback: mock send
-      console.warn('Twilio not configured — using mock send')
-      return { success: true, sid: 'mock-sid' }
+  isConfigured(): boolean {
+    return !!(this.client && this.phoneNumber)
+  }
+
+  async send(payload: MessagePayload): Promise<MessageResponse> {
+    if (!this.client || !this.isConfigured()) {
+      console.warn('[Twilio] Not configured - using mock send')
+      return {
+        success: true,
+        sid: `mock-${Date.now()}`,
+        channel: this.channel,
+        timestamp: new Date()
+      }
     }
 
     try {
-      const from = process.env.TWILIO_PHONE_NUMBER
-      if (!from) throw new Error('TWILIO_PHONE_NUMBER not set')
+      const isWhatsApp = payload.to.includes('whatsapp:') || this.channel === 'WHATSAPP'
+      const from = isWhatsApp 
+        ? (this.whatsappNumber || `whatsapp:${this.phoneNumber}`)
+        : this.phoneNumber
 
-      const params: any = {
-        to: payload.to,
+      const to = isWhatsApp && !payload.to.startsWith('whatsapp:')
+        ? `whatsapp:${payload.to}`
+        : payload.to
+
+      const messageData: any = {
         from,
+        to,
+        body: payload.content
       }
 
       if (payload.mediaUrls && payload.mediaUrls.length > 0) {
-        params.mediaUrl = payload.mediaUrls
+        messageData.mediaUrl = payload.mediaUrls
       }
 
-      // Twilio chooses channel from phone numbers; for WhatsApp you must use 'whatsapp:+...' in 'from'/'to'
-      if (payload.content) params.body = payload.content
+      const message = await this.client.messages.create(messageData)
 
-      const msg = await twilioClient.messages.create(params)
-      return { success: true, sid: msg.sid }
-    } catch (err: any) {
-      console.error('Twilio send error', err)
-      return { success: false, error: err.message }
+      return {
+        success: true,
+        sid: message.sid,
+        externalId: message.sid,
+        channel: isWhatsApp ? 'WHATSAPP' : 'SMS',
+        timestamp: new Date()
+      }
+    } catch (error: any) {
+      console.error('[Twilio] Send error:', error)
+      return {
+        success: false,
+        error: error.message || 'Failed to send message',
+        channel: this.channel,
+        timestamp: new Date()
+      }
     }
   }
 
-  async processWebhook(body: Record<string, any>) {
-    // Twilio sends form-urlencoded; this expects fields like Body, From, To, MessageSid, NumMedia...
-    const fromRaw = body.From || ''
-    const toRaw = body.To || ''
-    const isWhatsApp = fromRaw?.toString().startsWith('whatsapp:')
-    const content = body.Body || ''
-    const numMedia = Number(body.NumMedia || 0)
-    const mediaUrls: string[] = []
+  async processWebhook(body: any): Promise<InboundMessage | null> {
+    try {
+      const from = body.From || body.from
+      const content = body.Body || body.body
+      const messageSid = body.MessageSid || body.messageSid
 
-    for (let i = 0; i < numMedia; i++) {
-      const key = `MediaUrl${i}`
-      if (body[key]) mediaUrls.push(body[key].toString())
+      if (!from || !content) {
+        console.error('[Twilio] Invalid webhook payload')
+        return null
+      }
+
+      const isWhatsApp = from.startsWith('whatsapp:')
+      const normalizedFrom = from.replace('whatsapp:', '')
+
+      const mediaUrls: string[] = []
+      const numMedia = parseInt(body.NumMedia || '0', 10)
+      
+      for (let i = 0; i < numMedia; i++) {
+        const mediaUrl = body[`MediaUrl${i}`]
+        if (mediaUrl) mediaUrls.push(mediaUrl)
+      }
+
+      return {
+        externalId: messageSid,
+        from: normalizedFrom,
+        to: body.To,
+        content,
+        mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+        channel: isWhatsApp ? 'WHATSAPP' : 'SMS',
+        timestamp: new Date(),
+        metadata: {
+          accountSid: body.AccountSid,
+          messageSid,
+          status: body.SmsStatus || body.MessageStatus
+        }
+      }
+    } catch (error) {
+      console.error('[Twilio] Webhook processing error:', error)
+      return null
     }
-
-    const message: InboundMessage = {
-      externalId: body.MessageSid || undefined,
-      from: fromRaw.toString(),
-      to: toRaw.toString(),
-      channel: isWhatsApp ? 'WHATSAPP' : 'SMS',
-      content: content.toString(),
-      mediaUrls,
-      timestamp: new Date()
-    }
-
-    return message
   }
 
-  validateWebhook(signature: string, body: any, url: string) {
-    // For now: skip validation in dev. You can add Twilio RequestValidator here.
+  validateWebhook(signature: string, body: any, url?: string): boolean {
+    // For development: return true
+    // For production: implement proper Twilio signature validation
     return true
   }
 }

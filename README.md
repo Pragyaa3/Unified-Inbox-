@@ -1,36 +1,159 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Unified Inbox - Multi-Channel Communication Platform
 
-## Getting Started
+A Next.js application for managing SMS, WhatsApp, Email, and social media messages in one unified inbox.
 
-First, run the development server:
+## 🚀 Quick Start
 
+### Prerequisites
+- Node.js 18+ 
+- PostgreSQL database
+- Twilio account (for SMS/WhatsApp)
+
+### Setup Steps
+
+1. **Clone and Install**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repo>
+cd unified-inbox
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Set up Database**
+```bash
+# Create PostgreSQL database
+createdb unified_inbox
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# Or use Docker
+docker run --name unified-inbox-postgres \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=unified_inbox \
+  -p 5432:5432 \
+  -d postgres:15
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. **Configure Environment**
+```bash
+cp .env.example .env
+# Edit .env with your credentials
+```
 
-## Learn More
+Required variables:
+- `DATABASE_URL` - PostgreSQL connection string
+- `TWILIO_ACCOUNT_SID` - From Twilio Console
+- `TWILIO_AUTH_TOKEN` - From Twilio Console  
+- `TWILIO_PHONE_NUMBER` - Your Twilio number
 
-To learn more about Next.js, take a look at the following resources:
+4. **Initialize Database**
+```bash
+# Push schema to database
+npm run db:push
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Seed with demo data
+npm run db:seed
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+5. **Start Development Server**
+```bash
+npm run dev
+```
 
-## Deploy on Vercel
+Open http://localhost:3000
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Demo Login
+- Email: `demo@unified-inbox.local`
+- Password: `demo123`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+unified-inbox/
+├── src/
+│   ├── app/              # Next.js App Router
+│   │   ├── api/         # API routes
+│   │   ├── dashboard/   # Dashboard page
+│   │   └── page.tsx     # Home page
+│   ├── components/       # React components
+│   ├── lib/             # Utilities
+│   │   ├── db.ts       # Prisma client
+│   │   └── integrations/ # Channel integrations
+│   └── config/          # Configuration
+├── prisma/
+│   ├── schema.prisma    # Database schema
+│   └── seed.ts         # Seed data
+└── package.json
+```
+
+## 🔧 Twilio Webhook Setup
+
+1. Go to Twilio Console → Phone Numbers
+2. Select your number
+3. Under "Messaging", set webhook URL to:
+```
+   https://your-domain.com/api/webhooks/twilio
+```
+4. Set HTTP Method to `POST`
+
+For local testing, use ngrok:
+```bash
+ngrok http 3000
+# Use the ngrok URL in Twilio webhook settings
+```
+
+## 📊 Features
+
+- ✅ SMS & WhatsApp messaging via Twilio
+- ✅ Unified inbox with thread view
+- ✅ Contact management
+- ✅ Message scheduling
+- ✅ Team collaboration with notes
+- ✅ Analytics dashboard
+- ✅ Real-time webhook processing
+
+## 🛠️ Development
+```bash
+# Run development server
+npm run dev
+
+# Open Prisma Studio (database GUI)
+npm run db:studio
+
+# Run linter
+npm run lint
+
+# Build for production
+npm run build
+```
+
+## 📝 Environment Variables
+
+See `.env.example` for all available options.
+
+## 🐛 Troubleshooting
+
+**Database connection errors:**
+- Check `DATABASE_URL` format
+- Ensure PostgreSQL is running
+- Try: `npx prisma db push --force-reset`
+
+**Twilio webhook not working:**
+- Use ngrok for local testing
+- Check webhook URL in Twilio Console
+- Review logs in terminal
+
+**Messages not sending:**
+- Verify Twilio credentials in `.env`
+- Check Twilio account balance
+- Review integration logs
+
+## 📚 Documentation
+
+- [Prisma Docs](https://www.prisma.io/docs)
+- [Next.js Docs](https://nextjs.org/docs)
+- [Twilio API Docs](https://www.twilio.com/docs/sms)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push and create a Pull Request
+
+

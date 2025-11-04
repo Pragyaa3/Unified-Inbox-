@@ -1,27 +1,38 @@
-export type Channel = 'SMS' | 'WHATSAPP' | 'EMAIL' | 'TWITTER' | 'FACEBOOK'
+export type Channel = 'SMS' | 'WHATSAPP' | 'EMAIL' | 'TWITTER' | 'FACEBOOK' | 'VOICE'
 
-export type OutboundPayload = {
+export interface MessagePayload {
   to: string
-  content?: string
+  content: string
   mediaUrls?: string[]
-  subject?: string
+  scheduledFor?: Date
   metadata?: Record<string, any>
 }
 
-export type InboundMessage = {
+export interface MessageResponse {
+  success: boolean
+  sid?: string
+  messageId?: string
+  externalId?: string
+  error?: string
+  channel?: Channel
+  timestamp?: Date
+}
+
+export interface InboundMessage {
   externalId?: string
   from: string
   to?: string
   channel: Channel
-  content?: string
+  content: string
   mediaUrls?: string[]
-  timestamp?: Date
+  timestamp: Date
   metadata?: Record<string, any>
 }
 
 export interface ChannelIntegration {
+  channel: Channel
   isConfigured(): boolean
-  send(payload: OutboundPayload): Promise<{ success: boolean; sid?: string; error?: string }>
-  processWebhook(body: Record<string, any>): Promise<InboundMessage | null>
-  validateWebhook?(signature: string, body: any, url: string): boolean
+  send(payload: MessagePayload): Promise<MessageResponse>
+  processWebhook(body: any): Promise<InboundMessage | null>
+  validateWebhook?(signature: string, body: any, url?: string): boolean
 }

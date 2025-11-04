@@ -1,5 +1,3 @@
-// Prisma Schema for Unified Inbox
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,13 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User and Authentication
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String?
-  password  String?  // Hashed password for credentials auth
-  image     String?  // Profile image URL
+  password  String?
+  image     String?
   role      Role     @default(EDITOR)
   
   teamId    String?
@@ -48,29 +45,28 @@ model Session {
 }
 
 model Account {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  type      String   // oauth, credentials
-  provider  String   // google, credentials
+  type              String
+  provider          String
   providerAccountId String?
   
-  access_token  String?  @db.Text
-  refresh_token String?  @db.Text
-  expires_at    Int?
-  token_type    String?
-  scope         String?
-  id_token      String?  @db.Text
+  access_token      String?  @db.Text
+  refresh_token     String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
   
   @@unique([provider, providerAccountId])
   @@index([userId])
 }
 
-// Teams
 model Team {
   id        String   @id @default(cuid())
   name      String
@@ -84,30 +80,25 @@ model Team {
   @@index([slug])
 }
 
-// Contacts
 model Contact {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String?
-  email     String? @unique
-  whatsapp  String?
+  id              String    @id @default(cuid())
+  name            String
+  phone           String?
+  email           String?
+  whatsapp        String?
+  twitterHandle   String?
+  facebookId      String?
   
-  // Social handles
-  twitterHandle String?
-  facebookId    String?
+  tags            String[]
+  customFields    Json?
   
-  // Metadata
-  tags      String[]
-  customFields Json?
-  
-  // Timestamps
   lastContactedAt DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   
-  // Relations
-  messages  Message[]
-  notes     Note[]
+  messages        Message[]
+  notes           Note[]
+  threads         Thread[]
   
   @@index([phone])
   @@index([email])
@@ -115,36 +106,51 @@ model Contact {
   @@index([lastContactedAt])
 }
 
-// Messages
-model Message {
-  id        String   @id @default(cuid())
-  externalId String? @unique // External ID from provider (Twilio SID, etc.)
+model Thread {
+  id           String    @id @default(cuid())
+  contactId    String
+  contact      Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
   
-  contactId String
-  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  lastActivity DateTime  @default(now())
+  messages     Message[]
   
-  channel   Channel
-  direction Direction
-  status    MessageStatus @default(PENDING)
-  
-  content   String   @db.Text
-  mediaUrls String[]
-  
-  // Metadata
-  metadata  Json?
-  errorMessage String?
-  
-  // Scheduling
-  scheduledFor DateTime?
-  
-  // Timestamps
-  sentAt      DateTime?
-  deliveredAt DateTime?
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   
   @@index([contactId])
+  @@index([lastActivity])
+}
+
+model Message {
+  id           String        @id @default(cuid())
+  externalId   String?       @unique
+  
+  threadId     String?
+  thread       Thread?       @relation(fields: [threadId], references: [id])
+  
+  contactId    String
+  contact      Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  channel      Channel
+  direction    Direction
+  status       MessageStatus @default(PENDING)
+  
+  content      String        @db.Text
+  mediaUrls    String[]
+  
+  metadata     Json?
+  errorMessage String?
+  
+  scheduledFor DateTime?
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  @@index([contactId])
+  @@index([threadId])
   @@index([channel])
   @@index([direction])
   @@index([status])
@@ -152,17 +158,16 @@ model Message {
   @@index([createdAt])
 }
 
-// Notes (for team collaboration)
 model Note {
   id        String   @id @default(cuid())
   content   String   @db.Text
   isPrivate Boolean  @default(false)
   
   contactId String
-  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   
   authorId  String
-  author    User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -172,31 +177,27 @@ model Note {
   @@index([createdAt])
 }
 
-// Analytics
 model Analytics {
-  id        String   @id @default(cuid())
-  date      DateTime @db.Date
-  channel   Channel
+  id               String   @id @default(cuid())
+  date             DateTime @db.Date
+  channel          Channel
   
-  messagesSent     Int @default(0)
-  messagesReceived Int @default(0)
-  messagesFailed   Int @default(0)
+  messagesSent     Int      @default(0)
+  messagesReceived Int      @default(0)
+  messagesFailed   Int      @default(0)
   
-  avgResponseTime  Float @default(0) // in seconds
+  avgResponseTime  Float    @default(0)
+  uniqueContacts   Int      @default(0)
+  conversions      Int      @default(0)
   
-  // Engagement metrics
-  uniqueContacts   Int @default(0)
-  conversions      Int @default(0)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
   
   @@unique([date, channel], name: "date_channel")
   @@index([date])
   @@index([channel])
 }
 
-// Enums
 enum Role {
   VIEWER
   EDITOR

@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { IntegrationFactory } from '@/lib/integrations/factory'
-import { Channel } from '@/lib/integrations/types'
 import prisma from '@/lib/db'
 
-/**
- * POST handler for incoming Twilio webhooks (SMS/WhatsApp)
- * Processes inbound messages and stores them in the database
- */
 export async function POST(request: NextRequest) {
   try {
-    // Parse the form data from Twilio
     const formData = await request.formData()
     const body: Record<string, string> = {}
     
@@ -17,37 +11,29 @@ export async function POST(request: NextRequest) {
       body[key] = value.toString()
     })
 
-    // Validate webhook signature for security
-    const signature = request.headers.get('X-Twilio-Signature') || ''
-    const url = request.url
-    
-    // Determine channel type from the 'From' field
+    console.log('[Webhook] Received Twilio webhook:', body)
+
+    // Determine channel
     const from = body.From || ''
     const isWhatsApp = from.startsWith('whatsapp:')
-    const channel: Channel = isWhatsApp ? 'WHATSAPP' : 'SMS'
-    
+    const channel = isWhatsApp ? 'WHATSAPP' : 'SMS'
+
+    // Get integration
     const integration = IntegrationFactory.getIntegration(channel)
 
     if (!integration) {
-      console.error(`${channel} integration not configured`)
+      console.error(`[Webhook] ${channel} integration not configured`)
       return NextResponse.json(
         { error: `${channel} not configured` },
         { status: 500 }
       )
     }
 
-    // Validate the webhook (comment out in development if having issues)
-    // const isValid = integration.validateWebhook(signature, body, url)
-    // if (!isValid) {
-    //   console.error('Invalid Twilio webhook signature')
-    //   return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-    // }
-
-    // Process the webhook and normalize the data
+    // Process webhook
     const inboundMessage = await integration.processWebhook(body)
 
     if (!inboundMessage) {
-      console.error('Failed to process Twilio webhook')
+      console.error('[Webhook] Failed to process webhook')
       return NextResponse.json(
         { error: 'Invalid webhook data' },
         { status: 400 }
@@ -67,7 +53,6 @@ export async function POST(request: NextRequest) {
     })
 
     if (!contact) {
-      // Create new contact
       contact = await prisma.contact.create({
         data: {
           name: inboundMessage.from,
@@ -76,17 +61,32 @@ export async function POST(request: NextRequest) {
           lastContactedAt: new Date()
         }
       })
+      console.log('[Webhook] Created new contact:', contact.id)
     } else {
-      // Update last contacted timestamp
       await prisma.contact.update({
         where: { id: contact.id },
         data: { lastContactedAt: new Date() }
       })
     }
 
-    // Store the message in database
+    // Get or create thread
+    let thread = await prisma.thread.findFirst({
+      where: { contactId: contact.id }
+    })
+
+    if (!thread) {
+      thread = await prisma.thread.create({
+        data: {
+          contactId: contact.id,
+          lastActivity: new Date()
+        }
+      })
+    }
+
+    // Store message
     const message = await prisma.message.create({
       data: {
+        threadId: thread.id,
         externalId: inboundMessage.externalId,
         contactId: contact.id,
         channel: inboundMessage.channel,
@@ -100,7 +100,13 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log('Inbound message stored:', message.id)
+    console.log('[Webhook] Message stored:', message.id)
+
+    // Update thread
+    await prisma.thread.update({
+      where: { id: thread.id },
+      data: { lastActivity: new Date() }
+    })
 
     // Update analytics
     const today = new Date()
@@ -123,7 +129,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Return TwiML response (required by Twilio)
+    // Return TwiML response
     return new NextResponse(
       '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
       {
@@ -134,7 +140,7 @@ export async function POST(request: NextRequest) {
       }
     )
   } catch (error) {
-    console.error('Twilio webhook error:', error)
+    console.error('[Webhook] Error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

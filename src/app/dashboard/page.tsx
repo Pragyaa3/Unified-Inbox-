@@ -28,7 +28,7 @@ export default function DashboardPage() {
   })
   const [loading, setLoading] = useState(true)
 
-  // Fetch contacts
+  // Fetch contacts and stats
   useEffect(() => {
     fetchContacts()
     fetchStats()
@@ -43,24 +43,36 @@ export default function DashboardPage() {
 
   const fetchContacts = async () => {
     try {
-      const response = await fetch('/api/contacts?limit=50')
+      const response = await fetch('/api/contacts?limit=50', {
+        method: 'GET',
+        credentials: 'include', // ✅ send cookies for auth
+      })
+
       const data = await response.json()
-      
-      // Transform data to include last message
-      const transformedContacts = data.data.map((contact: any) => ({
+      console.log('Contacts API response:', data)
+
+      if (!response.ok) {
+        console.error('Failed to fetch contacts:', data?.error)
+        return
+      }
+
+      // Safely handle both possible response shapes
+      const contactsArray = data?.data || data?.contacts || []
+
+      const transformedContacts = contactsArray.map((contact: any) => ({
         ...contact,
-        lastMessage: contact.messages[0] || undefined,
-        unreadCount: 0 // TODO: Implement unread count logic
+        lastMessage: contact.messages?.[0] || undefined,
+        unreadCount: 0,
       }))
-      
+
       setContacts(transformedContacts)
-      
+
       // Auto-select first contact
       if (transformedContacts.length > 0 && !selectedContactId) {
         setSelectedContactId(transformedContacts[0].id)
       }
     } catch (error) {
-      console.error('Failed to fetch contacts:', error)
+      console.error('Error fetching contacts:', error)
     } finally {
       setLoading(false)
     }
@@ -68,9 +80,12 @@ export default function DashboardPage() {
 
   const fetchMessages = async (contactId: string) => {
     try {
-      const response = await fetch(`/api/messages?contactId=${contactId}&limit=100`)
+      const response = await fetch(`/api/messages?contactId=${contactId}&limit=100`, {
+        credentials: 'include',
+      })
       const data = await response.json()
-      setMessages(data.data.reverse()) // Reverse to show oldest first
+      const messagesArray = data?.data || []
+      setMessages(messagesArray.reverse()) // show oldest first
     } catch (error) {
       console.error('Failed to fetch messages:', error)
     }
@@ -78,8 +93,7 @@ export default function DashboardPage() {
 
   const fetchStats = async () => {
     try {
-      // TODO: Implement proper stats API endpoint
-      const response = await fetch('/api/analytics/summary')
+      const response = await fetch('/api/analytics/summary', { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
         setStats(data)
@@ -99,10 +113,9 @@ export default function DashboardPage() {
     try {
       const response = await fetch('/api/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
       })
 
       if (!response.ok) {
@@ -111,10 +124,10 @@ export default function DashboardPage() {
       }
 
       const result = await response.json()
-      
+
       // Add message to local state for immediate feedback
       if (result.data) {
-        setMessages([...messages, result.data])
+        setMessages((prev) => [...prev, result.data])
       }
 
       // Refresh contacts to update last message
@@ -125,14 +138,17 @@ export default function DashboardPage() {
     }
   }
 
-  const selectedContact = contacts.find(c => c.id === selectedContactId)
-  const availableChannels = selectedContact ? [
-    selectedContact.phone && 'SMS',
-    selectedContact.whatsapp && 'WHATSAPP',
-    selectedContact.email && 'EMAIL',
-    selectedContact.twitterHandle && 'TWITTER',
-    selectedContact.facebookId && 'FACEBOOK'
-  ].filter(Boolean) as string[] : []
+  const selectedContact = contacts.find((c) => c.id === selectedContactId)
+  const availableChannels =
+    selectedContact
+      ? [
+          selectedContact.phone && 'SMS',
+          selectedContact.whatsapp && 'WHATSAPP',
+          selectedContact.email && 'EMAIL',
+          selectedContact.twitterHandle && 'TWITTER',
+          selectedContact.facebookId && 'FACEBOOK',
+        ].filter(Boolean) as string[]
+      : []
 
   if (loading) {
     return (
@@ -151,7 +167,7 @@ export default function DashboardPage() {
       <header className="bg-white border-b px-6 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Unified Inbox</h1>
-          
+
           {/* Quick Stats */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2 text-sm">
@@ -211,7 +227,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {availableChannels.map(channel => (
+                    {availableChannels.map((channel) => (
                       <span
                         key={channel}
                         className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium"
@@ -236,7 +252,9 @@ export default function DashboardPage() {
                     <div
                       key={message.id}
                       className={`flex ${
-                        message.direction === 'OUTBOUND' ? 'justify-end' : 'justify-start'
+                        message.direction === 'OUTBOUND'
+                          ? 'justify-end'
+                          : 'justify-start'
                       }`}
                     >
                       <div
@@ -246,7 +264,9 @@ export default function DashboardPage() {
                             : 'bg-white text-gray-900 border'
                         }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-sm whitespace-pre-wrap">
+                          {message.content}
+                        </p>
                         <div className="flex items-center gap-2 mt-2 text-xs opacity-75">
                           <span>{message.channel}</span>
                           <span>•</span>
@@ -279,7 +299,9 @@ export default function DashboardPage() {
               <div className="text-center">
                 <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
                 <p className="text-lg font-medium">Select a conversation</p>
-                <p className="text-sm">Choose a contact from the sidebar to start messaging</p>
+                <p className="text-sm">
+                  Choose a contact from the sidebar to start messaging
+                </p>
               </div>
             </div>
           )}
