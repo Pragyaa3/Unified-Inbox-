@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { MessageSquare, Users, TrendingUp, Clock, Phone, Mail } from 'lucide-react'
 import InboxView from '@/components/inbox/InboxView'
 import MessageComposer from '@/components/composer/MessageComposer'
-import Toast from '@/components/ui/Toast'
 import { useToast } from '@/hooks/useToast'
+import Toast from '@/components/ui/Toast'
 
 interface DashboardStats {
   totalMessages: number
@@ -29,6 +29,7 @@ export default function DashboardPage() {
     todayMessages: 0
   })
   const [loading, setLoading] = useState(true)
+  const { toasts, showToast, removeToast } = useToast()
 
   // Fetch contacts and stats
   useEffect(() => {
@@ -117,50 +118,40 @@ export default function DashboardPage() {
   }
 
   // Update handleSendMessage:
-const handleSendMessage = async (data: {
-  contactId: string
-  channel: string
-  content: string
-  mediaUrls?: string[]
-  scheduledFor?: string
-}) => {
-  try {
-    const response = await fetch('/api/messages', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+  const handleSendMessage = async (data: {
+    contactId: string
+    channel: string
+    content: string
+    mediaUrls?: string[]
+    scheduledFor?: string
+  }) => {
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to send message')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to send message')
+      }
+
+      const result = await response.json()
+
+      if (result.data) {
+        setMessages((prev) => [...prev, result.data])
+        showToast('Message sent successfully!', 'success')
+      }
+
+      fetchContacts()
+    } catch (error) {
+      console.error('Send message error:', error)
+      showToast(error instanceof Error ? error.message : 'Failed to send message', 'error')
+      throw error
     }
-
-    const result = await response.json()
-
-    if (result.data) {
-      setMessages((prev) => [...prev, result.data])
-      showToast('Message sent successfully!', 'success')
-    }
-
-    fetchContacts()
-  } catch (error) {
-    console.error('Send message error:', error)
-    showToast(error instanceof Error ? error.message : 'Failed to send message', 'error')
-    throw error
   }
-}
-
-// Add before return statement:
-{toasts.map((toast) => (
-  <Toast
-    key={toast.id}
-    message={toast.message}
-    type={toast.type}
-    onClose={() => removeToast(toast.id)}
-  />
-))}
 
   const selectedContact = contacts.find((c) => c.id === selectedContactId)
   const availableChannels =
@@ -187,6 +178,17 @@ const handleSendMessage = async (data: {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
+      {/* Toast notifications */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
+      </div>
       {/* Header */}
       <header className="bg-white border-b px-6 py-4">
         <div className="flex items-center justify-between">
@@ -276,14 +278,14 @@ const handleSendMessage = async (data: {
                     <div
                       key={message.id}
                       className={`flex ${message.direction === 'OUTBOUND'
-                          ? 'justify-end'
-                          : 'justify-start'
+                        ? 'justify-end'
+                        : 'justify-start'
                         }`}
                     >
                       <div
                         className={`max-w-[70%] rounded-lg px-4 py-3 ${message.direction === 'OUTBOUND'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-gray-900 border'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-gray-900 border'
                           }`}
                       >
                         <p className="text-sm whitespace-pre-wrap">

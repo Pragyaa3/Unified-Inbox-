@@ -9,26 +9,6 @@ const TemplateSchema = z.object({
   variables: z.array(z.string()).optional(),
 })
 
-// First, add Template model to prisma/schema.prisma
-// Add this after Analytics model:
-/*
-model Template {
-  id        String   @id @default(cuid())
-  name      String
-  content   String   @db.Text
-  channel   Channel
-  variables String[]
-  
-  userId    String?
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  @@index([userId])
-  @@index([channel])
-}
-*/
-
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url)

@@ -1,4 +1,8 @@
+// src/lib/integrations/factory.ts (Updated)
 import { TwilioIntegration } from './twilio'
+import { EmailIntegration } from './email'
+import { TwitterIntegration } from './twitter'
+import { FacebookIntegration } from './facebook'
 import type { ChannelIntegration, Channel } from './types'
 
 export class IntegrationFactory {
@@ -8,16 +12,32 @@ export class IntegrationFactory {
   static initialize() {
     if (this.initialized) return
 
-    // Initialize Twilio for SMS and WhatsApp
+    // Initialize SMS
     const twilioSMS = new TwilioIntegration()
     twilioSMS.channel = 'SMS'
     this.integrations.set('SMS', twilioSMS)
 
+    // Initialize WhatsApp
     const twilioWhatsApp = new TwilioIntegration()
     twilioWhatsApp.channel = 'WHATSAPP'
     this.integrations.set('WHATSAPP', twilioWhatsApp)
 
+    // Initialize Email
+    const email = new EmailIntegration()
+    this.integrations.set('EMAIL', email)
+
+    // Initialize Twitter
+    const twitter = new TwitterIntegration()
+    this.integrations.set('TWITTER', twitter)
+
+    // Initialize Facebook
+    const facebook = new FacebookIntegration()
+    this.integrations.set('FACEBOOK', facebook)
+
     this.initialized = true
+    
+    console.log('[IntegrationFactory] Initialized with channels:', 
+      Array.from(this.integrations.keys()))
   }
 
   static getIntegration(channel: Channel | string): ChannelIntegration | null {
@@ -40,6 +60,17 @@ export class IntegrationFactory {
     return Array.from(this.integrations.keys()).filter(channel =>
       this.isChannelConfigured(channel)
     )
+  }
+
+  static getChannelStatus() {
+    this.initialize()
+    const status: Record<string, boolean> = {}
+    
+    Array.from(this.integrations.entries()).forEach(([channel, integration]) => {
+      status[channel] = integration.isConfigured()
+    })
+    
+    return status
   }
 }
 
