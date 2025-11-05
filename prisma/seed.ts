@@ -40,15 +40,19 @@ async function main() {
     data: { teamId: team.id }
   })
 
-  // Create demo contacts
+  // Create demo contacts - USE ID INSTEAD OF EMAIL
+  const contactIds = ['contact-alice', 'contact-bob', 'contact-carol']
+  
   const contacts = [
     {
+      id: contactIds[0],
       name: 'Alice Johnson',
       phone: '+919999000001',
       email: 'alice@example.com',
       tags: ['customer', 'vip']
     },
     {
+      id: contactIds[1],
       name: 'Bob Smith',
       phone: '+919999000002',
       whatsapp: '+919999000002',
@@ -56,6 +60,7 @@ async function main() {
       tags: ['lead']
     },
     {
+      id: contactIds[2],
       name: 'Carol Williams',
       phone: '+919999000003',
       email: 'carol@example.com',
@@ -63,9 +68,11 @@ async function main() {
     }
   ]
 
-  for (const contactData of contacts) {
+  for (let i = 0; i < contacts.length; i++) {
+    const contactData = contacts[i]
+    
     const contact = await prisma.contact.upsert({
-      where: { email: contactData.email },
+      where: { id: contactData.id }, // Use ID instead of email
       update: {},
       create: {
         ...contactData,
