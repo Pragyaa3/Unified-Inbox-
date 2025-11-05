@@ -22,14 +22,27 @@ interface Contact {
   }
 }
 
+// NEW: Separate type for ContactProfile (without _count)
+interface ContactForProfile {
+  id: string
+  name: string
+  phone?: string | null
+  email?: string | null
+  whatsapp?: string | null
+  twitterHandle?: string | null
+  facebookId?: string | null
+  tags: string[]
+  lastContactedAt?: Date | null
+  createdAt: Date
+}
+
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [selectedContact, setSelectedContact] = useState<ContactForProfile | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
 
-  // New contact form
   const [newContact, setNewContact] = useState({
     name: '',
     phone: '',
@@ -76,7 +89,12 @@ export default function ContactsPage() {
 
       if (response.ok) {
         const data = await response.json()
-        setContacts([data.data, ...contacts])
+        // Add _count to match Contact interface
+        const newContactWithCount = {
+          ...data.data,
+          _count: { messages: 0 }
+        }
+        setContacts([newContactWithCount, ...contacts])
         setShowAddModal(false)
         setNewContact({ name: '', phone: '', email: '', whatsapp: '', tags: '' })
       } else {
@@ -89,8 +107,12 @@ export default function ContactsPage() {
     }
   }
 
-  const handleUpdateContact = (updated: Contact) => {
-    setContacts(contacts.map((c) => (c.id === updated.id ? updated : c)))
+  const handleUpdateContact = (updated: ContactForProfile) => {
+    setContacts(contacts.map((c) => 
+      c.id === updated.id 
+        ? { ...updated, _count: c._count } // Preserve _count
+        : c
+    ))
     setSelectedContact(null)
   }
 
@@ -152,7 +174,11 @@ export default function ContactsPage() {
             {filteredContacts.map((contact) => (
               <div
                 key={contact.id}
-                onClick={() => setSelectedContact(contact)}
+                onClick={() => {
+                  // Convert Contact to ContactForProfile (remove _count)
+                  const { _count, ...contactForProfile } = contact
+                  setSelectedContact(contactForProfile as ContactForProfile)
+                }}
                 className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow cursor-pointer"
               >
                 <div className="flex items-start gap-4">

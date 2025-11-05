@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/db'
+import { prisma } from '@/lib/db'
 import { IntegrationFactory } from '@/lib/integrations/factory'
 
 export async function GET(request: NextRequest) {
@@ -37,7 +37,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get contact
     const contact = await prisma.contact.findUnique({
       where: { id: contactId }
     })
@@ -46,7 +45,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
     }
 
-    // Get or create thread
     let thread = await prisma.thread.findFirst({
       where: { contactId: contact.id }
     })
@@ -60,7 +58,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Handle scheduled messages
     if (scheduledFor) {
       const scheduledDate = new Date(scheduledFor)
       
@@ -84,11 +81,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Send immediately
     const integration = IntegrationFactory.getIntegration(channel)
     
     if (!integration || !integration.isConfigured()) {
-      // Store as PENDING if integration not configured
       const message = await prisma.message.create({
         data: {
           threadId: thread.id,
@@ -103,12 +98,11 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: 'Message stored as pending (integration not configured)',
+        message: 'Message stored as pending',
         data: message
       })
     }
 
-    // Determine recipient
     const to = channel === 'WHATSAPP' 
       ? (contact.whatsapp || contact.phone || '')
       : (contact.phone || contact.email || '')
@@ -120,7 +114,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send via integration
     const sendResult = await integration.send({
       to,
       content,
@@ -129,7 +122,6 @@ export async function POST(request: NextRequest) {
 
     const status = sendResult.success ? 'SENT' : 'FAILED'
 
-    // Store message
     const message = await prisma.message.create({
       data: {
         threadId: thread.id,
@@ -145,19 +137,16 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Update thread
     await prisma.thread.update({
       where: { id: thread.id },
       data: { lastActivity: new Date() }
     })
 
-    // Update contact
     await prisma.contact.update({
       where: { id: contact.id },
       data: { lastContactedAt: new Date() }
     })
 
-    // Update analytics
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 

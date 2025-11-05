@@ -8,6 +8,14 @@ type Env = {
   NEXT_PUBLIC_APP_URL: string
   JWT_SECRET: string
   
+  // Better Auth (optional)
+  BETTER_AUTH_SECRET?: string
+  BETTER_AUTH_URL?: string
+  
+  // Google OAuth (optional)
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
+  
   // Twilio
   TWILIO_ACCOUNT_SID?: string
   TWILIO_AUTH_TOKEN?: string
@@ -29,11 +37,21 @@ export const env: Env = {
   NEXT_PUBLIC_APP_URL: raw.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
   JWT_SECRET: raw.JWT_SECRET || 'dev_secret_change_in_production',
   
+  // Better Auth
+  BETTER_AUTH_SECRET: raw.BETTER_AUTH_SECRET,
+  BETTER_AUTH_URL: raw.BETTER_AUTH_URL,
+  
+  // Google OAuth
+  GOOGLE_CLIENT_ID: raw.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: raw.GOOGLE_CLIENT_SECRET,
+  
+  // Twilio
   TWILIO_ACCOUNT_SID: raw.TWILIO_ACCOUNT_SID,
   TWILIO_AUTH_TOKEN: raw.TWILIO_AUTH_TOKEN,
   TWILIO_PHONE_NUMBER: raw.TWILIO_PHONE_NUMBER,
   TWILIO_WHATSAPP_NUMBER: raw.TWILIO_WHATSAPP_NUMBER,
   
+  // Optional services
   RESEND_API_KEY: raw.RESEND_API_KEY,
   TWITTER_BEARER_TOKEN: raw.TWITTER_BEARER_TOKEN,
   FACEBOOK_APP_ID: raw.FACEBOOK_APP_ID,

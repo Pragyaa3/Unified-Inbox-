@@ -1,6 +1,7 @@
+// src/app/api/webhooks/twilio/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { IntegrationFactory } from '@/lib/integrations/factory'
-import prisma from '@/lib/db'
+import { prisma } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,12 +14,10 @@ export async function POST(request: NextRequest) {
 
     console.log('[Webhook] Received Twilio webhook:', body)
 
-    // Determine channel
     const from = body.From || ''
     const isWhatsApp = from.startsWith('whatsapp:')
     const channel = isWhatsApp ? 'WHATSAPP' : 'SMS'
 
-    // Get integration
     const integration = IntegrationFactory.getIntegration(channel)
 
     if (!integration) {
@@ -29,7 +28,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Process webhook
     const inboundMessage = await integration.processWebhook(body)
 
     if (!inboundMessage) {
@@ -40,7 +38,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find or create contact
     const normalizedPhone = inboundMessage.from.replace(/\D/g, '')
     
     let contact = await prisma.contact.findFirst({
@@ -69,7 +66,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Get or create thread
     let thread = await prisma.thread.findFirst({
       where: { contactId: contact.id }
     })
@@ -83,7 +79,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Store message
     const message = await prisma.message.create({
       data: {
         threadId: thread.id,
@@ -102,13 +97,11 @@ export async function POST(request: NextRequest) {
 
     console.log('[Webhook] Message stored:', message.id)
 
-    // Update thread
     await prisma.thread.update({
       where: { id: thread.id },
       data: { lastActivity: new Date() }
     })
 
-    // Update analytics
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
@@ -129,7 +122,6 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Return TwiML response
     return new NextResponse(
       '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
       {
