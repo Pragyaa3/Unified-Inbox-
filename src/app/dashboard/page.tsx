@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { MessageSquare, Users, TrendingUp, Clock, Phone, Mail } from 'lucide-react'
 import InboxView from '@/components/inbox/InboxView'
 import MessageComposer from '@/components/composer/MessageComposer'
+import Toast from '@/components/ui/Toast'
+import { useToast } from '@/hooks/useToast'
 
 interface DashboardStats {
   totalMessages: number
@@ -39,6 +41,17 @@ export default function DashboardPage() {
     if (selectedContactId) {
       fetchMessages(selectedContactId)
     }
+  }, [selectedContactId])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (selectedContactId) {
+        fetchMessages(selectedContactId)
+      }
+      fetchContacts()
+    }, 5000) // Poll every 5 seconds
+
+    return () => clearInterval(interval)
   }, [selectedContactId])
 
   const fetchContacts = async () => {
@@ -103,51 +116,62 @@ export default function DashboardPage() {
     }
   }
 
-  const handleSendMessage = async (data: {
-    contactId: string
-    channel: string
-    content: string
-    mediaUrls?: string[]
-    scheduledFor?: string
-  }) => {
-    try {
-      const response = await fetch('/api/messages', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
+  // Update handleSendMessage:
+const handleSendMessage = async (data: {
+  contactId: string
+  channel: string
+  content: string
+  mediaUrls?: string[]
+  scheduledFor?: string
+}) => {
+  try {
+    const response = await fetch('/api/messages', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to send message')
-      }
-
-      const result = await response.json()
-
-      // Add message to local state for immediate feedback
-      if (result.data) {
-        setMessages((prev) => [...prev, result.data])
-      }
-
-      // Refresh contacts to update last message
-      fetchContacts()
-    } catch (error) {
-      console.error('Send message error:', error)
-      throw error
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to send message')
     }
+
+    const result = await response.json()
+
+    if (result.data) {
+      setMessages((prev) => [...prev, result.data])
+      showToast('Message sent successfully!', 'success')
+    }
+
+    fetchContacts()
+  } catch (error) {
+    console.error('Send message error:', error)
+    showToast(error instanceof Error ? error.message : 'Failed to send message', 'error')
+    throw error
   }
+}
+
+// Add before return statement:
+{toasts.map((toast) => (
+  <Toast
+    key={toast.id}
+    message={toast.message}
+    type={toast.type}
+    onClose={() => removeToast(toast.id)}
+  />
+))}
 
   const selectedContact = contacts.find((c) => c.id === selectedContactId)
   const availableChannels =
     selectedContact
       ? [
-          selectedContact.phone && 'SMS',
-          selectedContact.whatsapp && 'WHATSAPP',
-          selectedContact.email && 'EMAIL',
-          selectedContact.twitterHandle && 'TWITTER',
-          selectedContact.facebookId && 'FACEBOOK',
-        ].filter(Boolean) as string[]
+        selectedContact.phone && 'SMS',
+        selectedContact.whatsapp && 'WHATSAPP',
+        selectedContact.email && 'EMAIL',
+        selectedContact.twitterHandle && 'TWITTER',
+        selectedContact.facebookId && 'FACEBOOK',
+      ].filter(Boolean) as string[]
       : []
 
   if (loading) {
@@ -251,18 +275,16 @@ export default function DashboardPage() {
                   messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex ${
-                        message.direction === 'OUTBOUND'
+                      className={`flex ${message.direction === 'OUTBOUND'
                           ? 'justify-end'
                           : 'justify-start'
-                      }`}
+                        }`}
                     >
                       <div
-                        className={`max-w-[70%] rounded-lg px-4 py-3 ${
-                          message.direction === 'OUTBOUND'
+                        className={`max-w-[70%] rounded-lg px-4 py-3 ${message.direction === 'OUTBOUND'
                             ? 'bg-blue-600 text-white'
                             : 'bg-white text-gray-900 border'
-                        }`}
+                          }`}
                       >
                         <p className="text-sm whitespace-pre-wrap">
                           {message.content}

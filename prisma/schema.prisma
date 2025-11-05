@@ -198,6 +198,22 @@ model Analytics {
   @@index([channel])
 }
 
+model Template {
+  id        String   @id @default(cuid())
+  name      String
+  content   String   @db.Text
+  channel   Channel
+  variables String[]
+  
+  userId    String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([channel])
+}
+
 enum Role {
   VIEWER
   EDITOR
